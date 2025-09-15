@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Main Page</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; background-color: #f9f9f9; }
+    input, button { margin: 5px; padding: 8px; border-radius: 4px; border: 1px solid #ccc; }
+    button { cursor: pointer; background-color: #007bff; color: white; border-color: #007bff; }
+    button:hover { background-color: #0056b3; }
+    .hidden { display: none; }
+    .section { border: 1px solid #eee; padding: 15px; margin-top: 20px; border-radius: 5px; }
+    h3 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <h1>Socket.IO Chat</h1>
+  <div id="status">Connecting...</div>
+  <button id="logoutButton" onclick="logout()" class="hidden">Logout</button>
+  
+  <div id="interaction-section" class="hidden">
+      <div class="section">
+          <h3>Create a New Room</h3>
+          <input type="text" id="newRoomName" placeholder="Enter new room name" size="30"/>
+          <button onclick="createRoom()">Create Room</button>
+      </div>
+
+      <div class="section">
+        <h3>Join a Room & Chat</h3>
+        <input type="text" id="roomIdToJoin" placeholder="Room ID to join" />
+        <button onclick="joinRoom()">Join Room</button>
+        <div id="chat"></div>
+      
+        <input type="text" id="message" placeholder="Type a message" size="50" />
+        <button onclick="sendMessage()">Send</button>
+      </div>
+  </div>
+
+  <script type="module">
+    import { io } from "https://cdn.socket.io/4.8.1/socket.io.esm.min.js";
+
+    let socket;
+    let currentRoomId = null;
+
+    function handlePastMessages(messages) {
+      const chat = document.getElementById("chat");
+      chat.innerHTML = "";
+      if (Array.isArray(messages)) {
+        messages.forEach(addMessage);
+      }
+      console.log("Past messages loaded for room:", currentRoomId);
+    }
+
+    function handleRoomCreated(room) {
+        alert(`Successfully created room "${room.name}" with ID: ${room.id}`);
+        document.getElementById("roomIdToJoin").value = room.id;
+    }
+
+    function handleRoomJoined(data) {
+        currentRoomId = data.room_id;
+        document.getElementById("status").innerText = `Joined room ${currentRoomId}`;
+        socket.emit("request_past_messages", { room_id: currentRoomId });
+    }
+
+    window.connectSocket = function(token) {
+      if (!token) return;
+      if(socket) socket.disconnect();
+
+      socket = io("http://127.0.0.1:8000", { auth: { token } });
+      socket.io.opts.auth = { token };
+
+      socket.on("connect", () => {
+        document.getElementById("status").innerText = "Connected!";
+        document.getElementById("interaction-section").classList.remove("hidden");
+        document.getElementById("logoutButton").classList.remove("hidden");
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error("Connection error:", err.message);
+        localStorage.removeItem("jwtToken");
+        setTimeout(() => window.location.href = "/login", 2000);
+      });
+      
+      socket.on("past_messages", handlePastMessages);
+      socket.on("room_created", handleRoomCreated);
+      socket.on("room_joined", handleRoomJoined);
+      socket.on("new_message", addMessage);
+      socket.on("error", (err) => alert(`Server Error: ${err.msg}`));
+    }
+    
+    window.createRoom = function() {
+        const roomName = document.getElementById("newRoomName").value.trim();
+        if (!roomName) return alert("Please enter a room name.");
+        socket.emit("create_room", { room_name: roomName });
+    }
+
+    window.joinRoom = function() {
+      const roomId = document.getElementById("roomIdToJoin").value.trim();
+      if (!roomId) return alert("Please enter a Room ID to join.");
+      socket.emit("join_room", { room_id: roomId });
+    }
+
+    window.sendMessage = function() {
+      if (!currentRoomId) return alert("You must join a room before sending messages.");
+      const content = document.getElementById("message").value.trim();
+      if (!content) return;
+      socket.emit("send_message", { room_id: currentRoomId, content });
+      document.getElementById("message").value = "";
+    }
+    
+    window.logout = function() {
+        if(socket) socket.disconnect();
+        localStorage.removeItem("jwtToken");
+        window.location.href = "/login";
+    }
+    function addMessage(msg) {
+      const chat = document.getElementById("chat");
+      const div = document.createElement("div");
+
+      let displayName;
+      if (msg.is_bot_response) {
+        displayName = (msg.users && msg.users.name) ? `${msg.users.name}` : "Gemini Bot";
+      } else {
+        displayName = (msg.users && msg.users.name) ? msg.users.name : msg.user_email;
+      }
+
+      div.innerText = `${displayName}: ${msg.content || ""}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const token = localStorage.getItem("jwtToken");
+      if (token) {
+        connectSocket(token);
+      } else {
+        window.location.href = "/login";
+      }
+      
+      document.getElementById("message").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") sendMessage();
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+python-socketio
+httpx
+google-generativeai
+python-dotenv
+python-jose[cryptography]
+jinja2

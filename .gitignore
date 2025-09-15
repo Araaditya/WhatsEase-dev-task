@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Editors/IDE
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
